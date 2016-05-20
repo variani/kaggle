@@ -1,0 +1,203 @@
+---
+title: "A dicision tree applied to Titanic data set"
+author: "Andrey Ziyatdinov"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    theme: united
+    toc: true
+    keep_md: true
+---
+
+```{r options, echo = F}
+opts_chunk$set(fig.path = "figures/", comment = NA, results = 'markup', tidy = F, message = F, warning = F, echo = T, cache = T)
+```
+
+```{r inc, cache = FALSE, echo = FALSE}
+library(plyr)
+library(ggplot2)
+library(gridExtra)
+
+library(pander)
+
+library(data.table)
+```
+
+```{r settings, cache = FALSE, echo = FALSE}
+theme_set(theme_light())
+panderOptions('table.split.table', Inf)
+panderOptions('knitr.auto.asis', FALSE)
+```
+
+# Include
+
+Library that implements the decision tree algorithm:
+
+```{r, cache = F}
+library(rpart)
+```
+
+# Parallel
+
+```{r parallel, echo = T}
+library(doMC)
+registerDoMC(cores = 2)
+```
+
+# Data
+
+```{r dat, echo = T}
+test <- fread("~/git/variani/kaggle/titanic/data/test.csv", data.table = F)
+train <- fread("~/git/variani/kaggle/titanic/data/train.csv", data.table = F)
+```
+
+## Cleaning
+
+```{r cleaning, echo = T}
+train <- within(train, {
+  Embarked[Embarked == ""] <- NA
+})
+```
+
+## Transform
+
+```{r dat2, echo = T}
+mutate2_dat <- function(df) 
+{
+  within(df, { 
+    Pclass <- ordered(Pclass)  
+    Sex <- factor(Sex)
+    SibSp <- ordered(SibSp)
+    Parch <- ordered(Parch, levels = c("0", "1", "2", "3", "4", "5", "6", "9"))
+    Embarked <- factor(Embarked)
+  })
+}
+
+train2 <- mutate2_dat(train)
+test2 <- mutate2_dat(test) 
+```
+
+
+# Model 1: recursive partitioning tree (rpart)
+
+```{r}
+fit1 <- rpart(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked, 
+  data = train, method = "class")
+```
+
+Plot the tree:
+
+```{r plot_fit1}
+plot(fit1)
+text(fit1)
+```
+
+Performance on the training set:
+
+```{r perf1}
+tab <- table(train$Survived, predict(fit1, train, type = "class"))
+tab
+
+# accuracy
+sum(diag(tab)) / sum(tab)
+```
+
+Performance on the trainig set was shown [here](http://trevorstephens.com/post/72923766261/titanic-getting-started-with-r-part-3-decision)
+to be `0.78`.
+
+Make a submission by yourself.
+
+```{r sub1}
+pred1 <- data.frame(PassengerId = test$PassengerId, Survived = predict(fit1, test, type = "class"))
+write.csv(pred1, file = "pred1.csv", row.names = FALSE)
+```
+
+Result: `0.78469` (#2030, as of 20 April, 2016)
+
+# Model 2: recursive partitioning tree (rpart) + prunning
+
+```{r fit2}
+Yt <- as.factor(train$Survived)
+Xt <- subset(train, select = c("Pclass", "Sex", "Age", "SibSp", "Parch", "Fare", "Embarked"))
+
+trControl <- trainControl(method = "repeatedcv", number = 5, repeats = 10, selectionFunction = "tolerance") 
+
+set.seed(1)
+fit2 <- train(Xt, Yt, trControl = trControl, method = "rpart", tuneLength = 10)
+
+mod2 <- fit2$finalModel
+```
+
+```{r fit2_show}
+fit2
+plot(fit2)
+```
+
+When applying `predict` function to prunned tree `fit2`, the best model is used.
+
+```{r check}
+table(predict(fit2, test), predict(fit2$finalModel, test, type = "class"))
+```
+
+Make a submission #2.
+
+```{r sub2}
+pred2 <- data.frame(PassengerId = test$PassengerId, Survived = predict(fit2, test))
+write.csv(pred2, file = "pred2.csv", row.names = FALSE)
+```
+
+Result: `0.78469` (exactly the same as #1).
+
+```{r check_pred12}
+table(pred1$Survived, pred2$Survived)
+```
+
+Plotting the model #2 shows that it is rather simple.
+
+```{r plot_mod2}
+plot(mod2)
+text(mod2)
+```
+
+# Model 3: recursive partitioning tree (ctree) + prunning
+
+
+```{r fit3}
+Yt <- as.factor(train2$Survived) 
+Xt <- subset(train2, select = c("Pclass", "Sex", "Age", "SibSp", "Parch", "Fare", "Embarked"))
+
+trControl <- trainControl(method = "repeatedcv", number = 5, repeats = 10, selectionFunction = "best") 
+
+set.seed(1)
+fit3 <- train(Xt, Yt, trControl = trControl, method = "ctree", tuneLength = 10)
+
+mod3 <- fit3$finalModel
+```
+
+```{r plot_mod3, fig.width = 12, fig.height = 9}
+plot(mod3) 
+```
+
+Make a submission #3.
+
+```{r sub3}
+Xp <- subset(test2, select = c("Pclass", "Sex", "Age", "SibSp", "Parch", "Fare", "Embarked"))
+pred3 <- data.frame(PassengerId = test$PassengerId, Survived = predict(fit3, Xp))
+write.csv(pred3, file = "pred3.csv", row.names = FALSE)
+```
+
+```
+0.79426
+
+3	Fri, 20 May 2016 16:11:23
+
+Your Best Entry
+You improved on your best score by 0.00957. 
+You just moved up 648 positions on the leaderboard.
+```
+
+
+```{r check_pred13}
+table(pred1$Survived, pred3$Survived)
+```
+
