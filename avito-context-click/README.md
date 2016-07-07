@@ -6,6 +6,10 @@ See also
 
 * https://github.com/owenzhang/kaggle-avito (the 1st prize winner)
 
+Blog posts
+
+* http://aadrake.com/a-quick-overview-on-the-kaggle-competition-for-avito.html
+
 Algorithms
 
 * http://www.r-bloggers.com/an-introduction-to-xgboost-r-package/
