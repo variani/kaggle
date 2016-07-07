@@ -6,6 +6,10 @@ See also
 
 * https://github.com/owenzhang/kaggle-avito (the 1st prize winner)
 
+Algorithms
+
+* http://www.r-bloggers.com/an-introduction-to-xgboost-r-package/
+
 ## R code
 
 R code (folder [R/](R/) is copied from https://github.com/diefimov/avito_context_click_2015. All the credits go to the two authors Lucas Silva and Dmitry Efimov, who were the 3rd place winners of the competetion.
@@ -33,3 +37,5 @@ See file [R/_fn.base.R](R/_fn.base.R) (line 80).
 ```
 n.proc <-detectCores()
 ```
+
+
